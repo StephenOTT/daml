@@ -70,6 +70,16 @@ private[lf] object Pretty {
       case Error.PartiesNotAllocated(parties) =>
         text(s"Error: Tried to submit a command for parties that have not been allocated:") &
           intercalate(comma + space, parties.map(prettyParty))
+
+      case Error.OutOfMemory(oom) =>
+        text(s"Error: the scenario interpreter ran out of memory:") & text(oom.toString)
+
+      case Error.StackOverflow(so) =>
+        text(s"Error: the scenario interpreter had a stack overflow:") & text(so.toString)
+
+      case Error.UnexpectedError(ue) =>
+        text(s"Error: the scenario interpreter had an unexpected error:") & text(ue.toString)
+
     }
 
 }

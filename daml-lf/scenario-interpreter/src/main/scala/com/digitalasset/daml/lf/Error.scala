@@ -77,4 +77,10 @@ object Error {
 
   /** Submitted commands for parties that have not been allocated. */
   final case class PartiesNotAllocated(parties: Set[Party]) extends Error
+
+  final case class StackOverflow(err: StackOverflowError) extends Error
+
+  final case class OutOfMemory(err: OutOfMemoryError) extends Error
+
+  final case class UnexpectedError(err: Throwable) extends Error
 }
