@@ -116,10 +116,11 @@ case class CommandSubmitter(
       }
     } yield ()
 
-  private def submitAndWait(
+  private def submit(
       id: String,
       party: Primitive.Party,
       commands: Seq[Command],
+      waitForSubmission: Boolean,
   )(implicit
       ec: ExecutionContext
   ): Future[Unit] = {
@@ -132,10 +133,13 @@ case class CommandSubmitter(
       workflowId = names.workflowId,
     )
 
-    for {
-      _ <- benchtoolUserServices.commandService
-        .submitAndWait(makeCommands(commands))
-    } yield ()
+    val future = if (waitForSubmission) {
+      benchtoolUserServices.commandService.submitAndWait(makeCommands(commands))
+    } else {
+      benchtoolUserServices.commandSubmissionService.submit(makeCommands(commands))
+    }
+
+    future.map(_ => ())
   }
 
   private def submitCommands(
@@ -190,10 +194,11 @@ case class CommandSubmitter(
             .buffer(maxInFlightCommands, OverflowStrategy.backpressure)
             .mapAsync(maxInFlightCommands) { case (index, commands) =>
               timed(submitAndWaitTimer, metricsManager)(
-                submitAndWait(
+                submit(
                   id = names.commandId(index),
                   party = signatory,
                   commands = commands.flatten,
+                  waitForSubmission = config.waitForSubmission,
                 )
               )
                 .map(_ => index + commands.length - 1)
