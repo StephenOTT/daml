@@ -28,6 +28,7 @@ class FibonacciCommandSubmitterITSpec
       numberOfInstances = 10,
       uniqueParties = false,
       value = 7,
+      waitForSubmission = true,
     )
 
     for {
@@ -42,6 +43,7 @@ class FibonacciCommandSubmitterITSpec
         adminServices = apiServices,
         metricRegistry = new MetricRegistry,
         metricsManager = NoOpMetricsManager(),
+        waitForSubmission = config.waitForSubmission,
       )
       (signatory, observers) <- tested.prepare(config)
       _ <- tested.submit(

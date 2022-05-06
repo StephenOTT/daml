@@ -132,6 +132,7 @@ object LedgerApiBenchTool {
               adminServices = adminServices,
               metricRegistry = metricRegistry,
               metricsManager = metricsManager,
+              submissionConfig.waitForSubmission,
             )
             result <- submitter
               .submit(
@@ -177,6 +178,7 @@ object LedgerApiBenchTool {
             adminServices = adminServices,
             metricRegistry = metricRegistry,
             metricsManager = NoOpMetricsManager(),
+            waitForSubmission = submissionConfig.waitForSubmission,
           )
           for {
             (signatory, observers) <- submitter.prepare(submissionConfig)

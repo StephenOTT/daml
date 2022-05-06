@@ -30,9 +30,14 @@ case class CommandSubmitter(
     adminServices: LedgerApiServices,
     metricRegistry: MetricRegistry,
     metricsManager: MetricsManager[LatencyNanos],
+    waitForSubmission: Boolean,
 ) {
   private val logger = LoggerFactory.getLogger(getClass)
-  private val submitAndWaitTimer = metricRegistry.timer("daml_submit_and_wait_latency")
+  private val submitLatencyTimer = if (waitForSubmission) {
+    metricRegistry.timer("daml_submit_and_wait_latency")
+  } else {
+    metricRegistry.timer("daml_submit_latency")
+  }
 
   def prepare(config: SubmissionConfig)(implicit
       ec: ExecutionContext
@@ -193,7 +198,7 @@ case class CommandSubmitter(
             .map(cmds => cmds.head._1 -> cmds.map(_._2).toList)
             .buffer(maxInFlightCommands, OverflowStrategy.backpressure)
             .mapAsync(maxInFlightCommands) { case (index, commands) =>
-              timed(submitAndWaitTimer, metricsManager)(
+              timed(submitLatencyTimer, metricsManager)(
                 submit(
                   id = names.commandId(index),
                   party = signatory,

@@ -39,7 +39,7 @@ object WorkflowConfig {
       instanceDistribution: List[WorkflowConfig.FooSubmissionConfig.ContractDescription],
       nonConsumingExercises: Option[NonconsumingExercises],
       consumingExercises: Option[ConsumingExercises],
-      maybeWaitForSubmission: Option[Boolean] = None
+      maybeWaitForSubmission: Option[Boolean] = None,
   ) extends SubmissionConfig {
     def waitForSubmission: Boolean = maybeWaitForSubmission.getOrElse(true)
   }

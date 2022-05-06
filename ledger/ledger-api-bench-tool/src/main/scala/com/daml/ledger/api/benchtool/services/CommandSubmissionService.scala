@@ -17,7 +17,9 @@ class CommandSubmissionService(channel: Channel, authorizationToken: Option[Stri
   private val logger = LoggerFactory.getLogger(getClass)
 
   private val service: CommandSubmissionServiceGrpc.CommandSubmissionServiceStub =
-    AuthorizationHelper.maybeAuthedService(authorizationToken)(CommandSubmissionServiceGrpc.stub(channel))
+    AuthorizationHelper.maybeAuthedService(authorizationToken)(
+      CommandSubmissionServiceGrpc.stub(channel)
+    )
 
   def submit(commands: Commands)(implicit ec: ExecutionContext): Future[Empty] =
     service
