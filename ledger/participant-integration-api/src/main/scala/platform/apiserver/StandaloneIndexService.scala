@@ -32,8 +32,8 @@ object StandaloneIndexService {
       servicesExecutionContext: ExecutionContextExecutor,
       lfValueTranslationCache: LfValueTranslationCache.Cache,
   )(implicit
-      materializer: Materializer,
       loggingContext: LoggingContext,
+      materializer: Materializer,
   ): ResourceOwner[IndexService] = {
     val valueEnricher = new ValueEnricher(engine)
 

@@ -56,6 +56,7 @@ da_scala_library(
         "//libs-scala/resources-grpc",
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:com_typesafe_config",
         "@maven//:io_dropwizard_metrics_metrics_core",
         "@maven//:org_slf4j_slf4j_api",
     ],
@@ -108,7 +109,6 @@ da_scala_library(
         "//libs-scala/resources-akka",
         "//libs-scala/resources-grpc",
         "@maven//:com_typesafe_config",
-        "@maven//:io_dropwizard_metrics_metrics_core",
         "@maven//:org_slf4j_slf4j_api",
     ],
 )

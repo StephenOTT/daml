@@ -7,7 +7,6 @@ import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{KillSwitches, Materializer, UniqueKillSwitch}
 import akka.{Done, NotUsed}
-import com.codahale.metrics.MetricRegistry
 import com.daml.buildinfo.BuildInfo
 import com.daml.ledger.api.domain.PackageEntry
 import com.daml.ledger.participant.state.index.v2.IndexService
@@ -39,20 +38,14 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.jdk.CollectionConverters._
 import scala.jdk.FutureConverters.CompletionStageOps
-import scala.util.{Failure, Success, Try}
-
 import scala.util.chaining._
+import scala.util.{Failure, Success, Try}
 
 final class SandboxServer(
     config: SandboxConfig,
     metrics: Metrics,
-)(implicit materializer: Materializer)
-    extends ResourceOwner[Port] {
-
-  // Only used for testing.
-  def this(config: SandboxConfig, materializer: Materializer) =
-    this(config, new Metrics(new MetricRegistry))(materializer)
-
+    ledgerName: LedgerName,
+) extends ResourceOwner[Port] {
   def acquire()(implicit resourceContext: ResourceContext): Resource[Port] = {
     val maybeLedgerId = config.jdbcUrl.flatMap(getLedgerId)
     val genericConfig = ConfigConverter.toSandboxOnXConfig(config, maybeLedgerId, DefaultName)
@@ -61,11 +54,9 @@ final class SandboxServer(
         SandboxOnXRunner.validateCombinedParticipantMode(genericConfig)
       (apiServer, writeService, indexService) <-
         SandboxOnXRunner
-          .buildLedger(
+          .buildLedger(ledgerName.unwrap)(
             genericConfig,
             participantConfig,
-            materializer,
-            materializer.system,
             Some(metrics),
           )
           .acquire()
@@ -74,7 +65,6 @@ final class SandboxServer(
         implicit loggingContext =>
           loadPackages(writeService, indexService)(
             resourceContext.executionContext,
-            materializer.system,
             loggingContext,
           )
             .acquire()
@@ -122,9 +112,9 @@ final class SandboxServer(
 
   private def loadPackages(writeService: WriteService, indexService: IndexService)(implicit
       executionContext: ExecutionContext,
-      system: ActorSystem,
       loggingContext: LoggingContext,
-  ): AbstractResourceOwner[ResourceContext, Unit] =
+  ): AbstractResourceOwner[ResourceContext, Unit] = {
+    implicit val system: ActorSystem = ActorSystem()
     ResourceOwner.forFuture(() => {
       val packageSubmissionsTrackerMap = config.damlPackages.map { file =>
         val uploadCompletionPromise = Promise[Unit]()
@@ -135,7 +125,11 @@ final class SandboxServer(
         .tap { _ =>
           scheduleUploadTimeout(packageSubmissionsTrackerMap.iterator.map(_._2._2), 30.seconds)
         }
+        .andThen { case _ =>
+          system.terminate()
+        }
     })
+  }
 
   private def scheduleUploadTimeout(
       packageSubmissionsPromises: Iterator[Promise[Unit]],
@@ -162,6 +156,7 @@ final class SandboxServer(
   )(implicit
       executionContext: ExecutionContext,
       loggingContext: LoggingContext,
+      materializer: Materializer,
   ): Future[Unit] = {
     implicit val noOpTelemetryContext: TelemetryContext = NoOpTelemetryContext
 
@@ -225,9 +220,7 @@ object SandboxServer {
         config.metricsReporter,
         config.metricsReportingInterval,
       )
-      actorSystem <- ResourceOwner.forActorSystem(() => ActorSystem(name.unwrap.toLowerCase()))
-      materializer <- ResourceOwner.forMaterializer(() => Materializer(actorSystem))
-      server <- new SandboxServer(config, metrics)(materializer)
+      server <- new SandboxServer(config, metrics, name)
     } yield server
 
   // Run only the flyway migrations but do not initialize any of the ledger api or indexer services

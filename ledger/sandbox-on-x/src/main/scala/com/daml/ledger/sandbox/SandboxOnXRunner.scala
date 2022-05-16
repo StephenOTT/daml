@@ -79,26 +79,14 @@ object SandboxOnXRunner {
 
   private def run(
       config: Config[BridgeConfig]
-  )(implicit resourceContext: ResourceContext): Resource[Unit] = {
-    implicit val actorSystem: ActorSystem = ActorSystem(RunnerName)
-    implicit val materializer: Materializer = Materializer(actorSystem)
-
-    for {
-      // Take ownership of the actor system and materializer so they're cleaned up properly.
-      // This is necessary because we can't declare them as implicits in a `for` comprehension.
-      _ <- ResourceOwner.forActorSystem(() => actorSystem).acquire()
-      _ <- ResourceOwner.forMaterializer(() => materializer).acquire()
-
-      // Start the ledger
+  )(implicit resourceContext: ResourceContext): Resource[Unit] =
+    for { // Start the ledger
       participantConfig <- validateCombinedParticipantMode(config)
-      _ <- buildLedger(
+      _ <- buildLedger(RunnerName)(
         config,
         participantConfig,
-        materializer,
-        actorSystem,
       ).acquire()
     } yield logInitializationHeader(config, participantConfig)
-  }
 
   def validateCombinedParticipantMode(
       config: Config[BridgeConfig]
@@ -114,14 +102,12 @@ object SandboxOnXRunner {
         }
     }
 
-  def buildLedger(implicit
+  def buildLedger(ledgerName: String)(implicit
       config: Config[BridgeConfig],
       participantConfig: ParticipantConfig,
-      materializer: Materializer,
-      actorSystem: ActorSystem,
       metrics: Option[Metrics] = None,
   ): ResourceOwner[(ApiServer, WriteService, IndexService)] = {
-    implicit val apiServerConfig: ApiServerConfig =
+    val apiServerConfig: ApiServerConfig =
       BridgeConfigProvider.apiServerConfig(participantConfig, config)
     val sharedEngine = new Engine(config.engineConfig)
 
@@ -129,13 +115,36 @@ object SandboxOnXRunner {
       implicit loggingContext =>
         for {
           metrics <- metrics.map(ResourceOwner.successful).getOrElse(buildMetrics)
+          akkaExecutionContext <- ResourceOwner
+            .forExecutorService(() =>
+              new InstrumentedExecutorService(
+                Executors.newWorkStealingPool(Runtime.getRuntime.availableProcessors()),
+                metrics.registry,
+                metrics.daml.lapi.threadpool.akka.toString,
+              )
+            )
+            .map(ExecutionContext.fromExecutorService)
+
+          actorSystem = ActorSystem(
+            name = ledgerName,
+            defaultExecutionContext = Some(akkaExecutionContext),
+          )
+          materializer = Materializer(actorSystem)
+          // Take ownership of the actor system and materializer so they're cleaned up properly.
+          // This is necessary because we can't declare them as implicits in a `for` comprehension.
+          _ <- ResourceOwner.forActorSystem(() => actorSystem)
+          _ <- ResourceOwner.forMaterializer(() => materializer)
+
           translationCache = LfValueTranslationCache.Cache.newInstrumentedInstance(
             eventConfiguration = config.lfValueTranslationEventCache,
             contractConfiguration = config.lfValueTranslationContractCache,
             metrics = metrics,
           )
 
-          (stateUpdatesFeedSink, stateUpdatesSource) <- AkkaSubmissionsBridge()
+          (stateUpdatesFeedSink, stateUpdatesSource) <- AkkaSubmissionsBridge()(
+            loggingContext,
+            materializer,
+          )
 
           servicesThreadPoolSize = Runtime.getRuntime.availableProcessors()
           servicesExecutionContext <- buildServicesExecutionContext(
@@ -156,7 +165,7 @@ object SandboxOnXRunner {
             new TimedReadService(readServiceWithSubscriber, metrics),
             translationCache,
             participantConfig,
-          )
+          )(loggingContext, materializer)
 
           dbSupport <- DbSupport
             .owner(
@@ -176,7 +185,7 @@ object SandboxOnXRunner {
             lfValueTranslationCache = translationCache,
             dbSupport = dbSupport,
             participantId = apiServerConfig.participantId,
-          )
+          )(loggingContext, materializer)
 
           timeServiceBackend = BridgeConfigProvider.timeServiceBackend(config)
 
@@ -187,7 +196,7 @@ object SandboxOnXRunner {
             servicesExecutionContext,
             servicesThreadPoolSize,
             timeServiceBackend,
-          )
+          )(materializer, config, participantConfig, loggingContext)
 
           apiServer <- buildStandaloneApiServer(
             sharedEngine,
@@ -198,7 +207,7 @@ object SandboxOnXRunner {
             indexerHealthChecks,
             timeServiceBackend,
             dbSupport,
-          )
+          )(actorSystem, loggingContext, config, apiServerConfig)
         } yield (apiServer, writeService, indexService)
     }
   }
