@@ -347,7 +347,7 @@ private[platform] object MutableCacheBackedContractStore {
       contractStore: MutableCacheBackedContractStore,
       subscribeToContractStateEvents: SubscribeToContractStateEvents,
       minBackoffStreamRestart: FiniteDuration = 100.millis,
-  )(implicit materializer: Materializer)
+  )(implicit materializer: Materializer, servicesExecutionContext: ExecutionContext)
       extends ResourceOwner[Unit] {
     override def acquire()(implicit
         context: ResourceContext
@@ -361,7 +361,10 @@ private[platform] object MutableCacheBackedContractStore {
               randomFactor = 0.2,
             )
           )(() => subscribeToContractStateEvents())
-          .map(contractStore.push)
+          .async
+          .mapAsync(1) { contractStateEvent =>
+            Future(contractStore.push(contractStateEvent))(servicesExecutionContext)
+          }
           .viaMat(KillSwitches.single)(Keep.right[NotUsed, UniqueKillSwitch])
           .toMat(Sink.ignore)(Keep.both[UniqueKillSwitch, Future[Done]])
           .run()

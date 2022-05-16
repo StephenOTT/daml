@@ -118,6 +118,7 @@ object SandboxOnXRunner {
           akkaExecutionContext <- ResourceOwner
             .forExecutorService(() =>
               new InstrumentedExecutorService(
+                // TODO LLP: Consider having the actor system configurable inside the participant
                 Executors.newWorkStealingPool(Runtime.getRuntime.availableProcessors()),
                 metrics.registry,
                 metrics.daml.lapi.threadpool.akka.toString,

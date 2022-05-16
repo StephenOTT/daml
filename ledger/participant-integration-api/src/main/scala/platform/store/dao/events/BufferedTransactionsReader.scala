@@ -49,7 +49,8 @@ private[events] class BufferedTransactionsReader(
         LoggingContext,
     ) => ToApi[GetTransactionTreesResponse],
     metrics: Metrics,
-) extends LedgerDaoTransactionsReader {
+)(implicit executionContext: ExecutionContext)
+    extends LedgerDaoTransactionsReader {
 
   private val flatTransactionsBufferMetrics =
     metrics.daml.services.index.BufferedReader("flat_transactions")
@@ -188,7 +189,7 @@ private[platform] object BufferedTransactionsReader {
       toApiTx: ToApi[API_RESPONSE],
       fetchTransactions: FetchTransactions[FILTER, API_RESPONSE],
       bufferReaderMetrics: metrics.daml.services.index.BufferedReader,
-  ): Source[(Offset, API_RESPONSE), NotUsed] = {
+  )(implicit executionContext: ExecutionContext): Source[(Offset, API_RESPONSE), NotUsed] = {
     def bufferSource(
         bufferSlice: Vector[(Offset, TransactionLogUpdate.Transaction)]
     ) =
@@ -207,18 +208,18 @@ private[platform] object BufferedTransactionsReader {
           }
 
     val source = Source
-      .unfold(startExclusive) {
+      .unfoldAsync(startExclusive) {
         case scannedToInclusive if scannedToInclusive < endInclusive =>
-          val bufferSlice = transactionsBuffer.slice(
-            scannedToInclusive,
-            endInclusive,
-            {
-              case tx: TransactionLogUpdate.Transaction => filterEvents(tx)
-              case _ => None
-            },
-          )
-
-          bufferSlice match {
+          Future(
+            transactionsBuffer.slice(
+              scannedToInclusive,
+              endInclusive,
+              {
+                case tx: TransactionLogUpdate.Transaction => filterEvents(tx)
+                case _ => None
+              },
+            )
+          ).map {
             case BufferSlice.Inclusive(slice, continueFrom) =>
               val source = bufferSource(slice)
               Some(continueFrom.map(_ -> source).getOrElse(endInclusive -> source))
@@ -229,7 +230,7 @@ private[platform] object BufferedTransactionsReader {
                 )
               Some(continueFrom.map(_ -> source).getOrElse(endInclusive -> source))
           }
-        case _ => None
+        case _ => Future.successful(None)
       }
       .flatMapConcat(identity)
 

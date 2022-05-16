@@ -320,15 +320,17 @@ private[dao] final class TransactionsReader(
           )
         }
       }
-      .mapConcat(identity)
       .async
       // Decode transaction log updates in parallel
       .mapAsync(eventProcessingParallelism) { raw =>
         Timed.future(
           metrics.daml.index.decodeTransactionLogUpdate,
-          Future(TransactionLogUpdatesReader.toTransactionEvent(raw)),
+          Future.traverse(raw)(event =>
+            Future(TransactionLogUpdatesReader.toTransactionEvent(event))
+          ),
         )
       }
+      .mapConcat(identity)
 
     val transactionLogUpdatesSource = TransactionsReader
       .groupContiguous(eventsSource)(by = _.transactionId)
