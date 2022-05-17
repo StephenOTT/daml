@@ -237,7 +237,7 @@ private[daml] object ApiServices {
         apiCompletionService: CommandCompletionService,
         apiTransactionService: GrpcTransactionService,
         downstreamOverload: TelemetryContext => Option[state.SubmissionResult],
-        maxConcurrentRequests: Int = 1000,
+        maxConcurrentRequests: Int = 100,
     )(implicit executionContext: ExecutionContext): List[BindableService] = {
 
       optWriteService.toList.flatMap { writeService =>
@@ -264,6 +264,7 @@ private[daml] object ApiServices {
 
         val executorOverloaded: TelemetryContext => Option[state.SubmissionResult] = _ => {
           val executions = probe()
+				  logger.warn(s"Work in progress is $executions (max: $maxConcurrentRequests)")
           if (executions > maxConcurrentRequests) {
             Some(
               SubmissionResult.SynchronousError(

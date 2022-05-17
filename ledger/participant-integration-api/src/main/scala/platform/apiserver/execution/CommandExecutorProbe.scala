@@ -28,8 +28,8 @@ private class CommandExecutorProbe(delegate: CommandExecutor, probe: AtomicInteg
       loggingContext: LoggingContext
   ): Future[Either[ErrorCause, CommandExecutionResult]] = {
 
-    val future = delegate.execute(commands, submissionSeed, ledgerConfiguration)
     probe.incrementAndGet()
+    val future = delegate.execute(commands, submissionSeed, ledgerConfiguration)
     future.onComplete(_ => probe.decrementAndGet())(ExecutionContext.parasitic)
     future
   }: Future[Either[ErrorCause, CommandExecutionResult]]
