@@ -56,8 +56,7 @@ trait ConfigProvider[ExtraConfig] {
         acsGlobalParallelism = config.acsGlobalParallelism,
         maxContractStateCacheSize = participantConfig.maxContractStateCacheSize,
         maxContractKeyStateCacheSize = participantConfig.maxContractKeyStateCacheSize,
-        maxTransactionsInMemoryFanOutBufferSize =
-          participantConfig.maxTransactionsInMemoryFanOutBufferSize,
+        maxTransactionsInMemoryFanOutBufferSize = config.ledgerApiBufferSize,
         enableInMemoryFanOutForLedgerApi = config.enableInMemoryFanOutForLedgerApi,
         archiveFiles = Nil,
       ),

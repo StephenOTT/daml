@@ -55,6 +55,7 @@ final case class Config[Extra](
     timeProviderType: TimeProviderType,
     tlsConfig: Option[TlsConfiguration],
     userManagementConfig: UserManagementConfig,
+    ledgerApiBufferSize: Long,
 ) {
   def withTlsConfig(modify: TlsConfiguration => TlsConfiguration): Config[Extra] =
     copy(tlsConfig = Some(modify(tlsConfig.getOrElse(TlsConfiguration.Empty))))
@@ -104,6 +105,7 @@ object Config {
       timeProviderType = TimeProviderType.WallClock,
       tlsConfig = None,
       userManagementConfig = UserManagementConfig.default(enabled = false),
+      ledgerApiBufferSize = IndexConfiguration.DefaultMaxTransactionsInMemoryFanOutBufferSize,
     )
 
   def ownerWithoutExtras(name: String, args: collection.Seq[String]): ResourceOwner[Config[Unit]] =
@@ -260,10 +262,6 @@ object Config {
               .get("contract-key-state-cache-max-size")
               .map(_.toLong)
               .getOrElse(IndexConfiguration.DefaultMaxContractKeyStateCacheSize)
-            val maxTransactionsInMemoryFanOutBufferSize = kv
-              .get("ledger-api-transactions-buffer-max-size")
-              .map(_.toLong)
-              .getOrElse(IndexConfiguration.DefaultMaxTransactionsInMemoryFanOutBufferSize)
             val partConfig = ParticipantConfig(
               mode = runMode,
               participantId = participantId,
@@ -288,7 +286,6 @@ object Config {
               managementServiceTimeout = managementServiceTimeout,
               maxContractStateCacheSize = maxContractStateCacheSize,
               maxContractKeyStateCacheSize = maxContractKeyStateCacheSize,
-              maxTransactionsInMemoryFanOutBufferSize = maxTransactionsInMemoryFanOutBufferSize,
             )
             config.copy(participants = config.participants :+ partConfig)
           })
@@ -445,6 +442,10 @@ object Config {
             else Left("buffered-streams-page-size should be strictly positive")
           }
           .action((pageSize, config) => config.copy(bufferedStreamsPageSize = pageSize))
+
+        opt[Long]("ledger-api-transactions-buffer-max-size")
+          .optional()
+          .action((bufferSize, config) => config.copy(ledgerApiBufferSize = bufferSize))
 
         opt[Int]("buffers-prefetching-parallelism")
           .optional()

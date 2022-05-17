@@ -99,6 +99,7 @@ object ConfigConverter {
       timeProviderType = sandboxConfig.timeProviderType.getOrElse(DefaultTimeProviderType),
       tlsConfig = sandboxConfig.tlsConfig,
       userManagementConfig = sandboxConfig.userManagementConfig,
+      ledgerApiBufferSize = 1000,
     )
   }
 }

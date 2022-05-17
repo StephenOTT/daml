@@ -28,8 +28,6 @@ final case class ParticipantConfig(
       ParticipantConfig.DefaultApiServerDatabaseConnectionTimeout,
     maxContractStateCacheSize: Long = IndexConfiguration.DefaultMaxContractStateCacheSize,
     maxContractKeyStateCacheSize: Long = IndexConfiguration.DefaultMaxContractKeyStateCacheSize,
-    maxTransactionsInMemoryFanOutBufferSize: Long =
-      IndexConfiguration.DefaultMaxTransactionsInMemoryFanOutBufferSize,
 ) {
   def metricsRegistryName: String = participantId + shardName.map("-" + _).getOrElse("")
 }
