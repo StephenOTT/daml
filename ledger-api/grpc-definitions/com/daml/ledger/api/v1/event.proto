@@ -32,6 +32,13 @@ message Event {
   reserved "exercised";
 }
 
+// Result of evaluating an interface view consisting of the view definition
+// and the resulting value.
+message InterfaceViewResult {
+  InterfaceView view = 1;
+  Record value = 2;
+}
+
 // Records that a contract has been created, and choices may now be exercised on it.
 message CreatedEvent {
 
@@ -54,8 +61,18 @@ message CreatedEvent {
   Value contract_key = 7;
 
   // The arguments that have been used to create the contract.
-  // Required
+  // Optional
   Record create_arguments = 4;
+
+  // Opaque representation of contract payload. This cannot be decoded by the client.
+  // Optional
+  bytes create_arguments_blob = 10;
+
+  // Interface views specified in the transaction filter. Only contains entries
+  // for the intersection of interfaces implemented by the template
+  // and the interfaces specified in the transaction filter.
+  // Optional
+  repeated InterfaceViewResult interface_views = 11;
 
   // The parties that are notified of this event. When a ``CreatedEvent``
   // is returned as part of a transaction tree, this will include all
@@ -113,7 +130,7 @@ message ArchivedEvent {
 }
 
 // Records that a choice has been exercised on a target contract.
-message ExercisedEvent {
+message ExercisedEventxo {
 
   // The ID of this particular event.
   // Must be a valid LedgerString (as described in ``value.proto``).
